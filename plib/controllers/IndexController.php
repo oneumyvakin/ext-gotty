@@ -5,55 +5,134 @@ class IndexController extends pm_Controller_Action
 
     public function indexAction()
     {
-        $domId = $this->_getParam('dom_id');
-        $domain = pm_Domain::getByDomainId($domId);
-        $subscriptionPath = $domain->getHomePath();
-        $sysUser = $domain->getSysUserLogin();
-        $shell = pm_Bootstrap::getDbAdapter()->fetchOne("select shell from sys_users where login='${sysUser}'");
-        pm_Log::info(print_r($shell, 1));
-        $gottyMngBinary = pm_ProductInfo::getOsArch() == 'i386' ? 'gottymng.i386' : 'gottymng.x86_64';
-        $gottyMngPath = '/usr/local/psa/admin/sbin/modules/'. pm_Context::getModuleId() . '/' . $gottyMngBinary;
-        $tlsCrtPath = $subscriptionPath . '/' . 'gotty-crt.pem';
-        $tlsKeyPath = $subscriptionPath . '/' . 'gotty-key.pem';
-
-        $args = [
-            $sysUser,
-            'exec',
-            $subscriptionPath,
-            $gottyMngPath,
-            '-crt-file', $tlsCrtPath,
-            '-key-file', $tlsKeyPath,
-        ];
-        $err = pm_ApiCli::callSbin('filemng', $args, pm_ApiCli::RESULT_FULL);
-        if ($err['code'] <> 0) {
-            throw new pm_Exception("Failed to generate TLS certificate: filemng " . print_r($args, true) . " with: " . print_r($err, true));
+        $client = pm_Session::getClient();
+        if (!$client->isAdmin()) {
+            throw new pm_Exception("Permission denied");
         }
 
-        $address = '192.168.0.120';
-        $port = '9000';
-        $user = 'user';
-        $pass = 'pass';
+        $this->_forward('settings');
+    }
+
+    public function settingsAction()
+    {
+        $form = new Modules_Gotty_SettingsForm();
+
+        $form->addElement('checkbox', 'useDomainsCertificate', [
+            'label' => $this->lmsg('useDomainsCertificate'),
+            'value' => pm_Settings::get('useDomainsCertificate'),
+        ]);
+
+        $form->addElement('text', 'port', [
+            'label' => $this->lmsg('port'),
+            'value' => pm_Settings::get('port', '9000'),
+            'required' => true,
+            'validators' => [
+                ['NotEmpty', true],
+            ],
+        ]);
+
+        $form->addControlButtons([
+            'cancelLink' => pm_Context::getModulesListUrl(),
+        ]);
+
+        if ($this->getRequest()->isPost() && $form->isValid($this->getRequest()->getPost())) {
+
+            pm_Settings::set('useDomainsCertificate', $form->getValue('useDomainsCertificate'));
+            pm_Settings::set('port', $form->getValue('port'));
+
+            $this->_status->addMessage('info', $this->lmsg('settingsWasSuccessfullySaved'));
+            $this->_helper->json(['redirect' => pm_Context::getBaseUrl()]);
+        }
+
+        $this->view->form = $form;
+    }
+
+    public function shellAction()
+    {
+        $siteId = $this->_getParam('site_id');
+        if (empty($siteId)) {
+            throw new pm_Exception("Permission denied");
+        }
+        if (!pm_Session::getClient()->hasAccessToDomain($siteId)) {
+            throw new pm_Exception("Permission denied");
+        }
+
+        $domain = pm_Domain::getByDomainId($siteId);
+        $subscriptionPath = $domain->getHomePath();
+        $gottyStuffPath = $subscriptionPath . '/' . '.web-term';
+        $sysUser = $domain->getSysUserLogin();
+        $shell = pm_Bootstrap::getDbAdapter()->fetchOne("select shell from sys_users where login='${sysUser}'");
+
+        if (!file_exists($gottyStuffPath)) {
+            $args = [
+                $sysUser,
+                'mkdir',
+                $gottyStuffPath,
+            ];
+            $err = pm_ApiCli::callSbin('filemng', $args, pm_ApiCli::RESULT_FULL);
+            if ($err['code'] <> 0) {
+                throw new pm_Exception("Failed to create folder: filemng " . print_r($args, true) . " with: " . print_r($err, true));
+            }
+        }
+        $tlsCrtPath = $gottyStuffPath . '/' . 'web-term-crt.pem';
+        $tlsKeyPath = $gottyStuffPath . '/' . 'web-term-key.pem';
+        $certificate = pm_Bootstrap::getDbAdapter()->fetchOne("select cert_file from certificates, hosting where id = certificate_id AND dom_id = ?", [$domain->getId()]);
+        pm_Log::debug(print_r($certificate, true));
+        if (pm_Settings::get('useDomainsCertificate') && !empty($certificate)) {
+            $certRepositoryPath = '/usr/local/psa/var/certificates/';
+            $certificatePath = $certRepositoryPath . $certificate;
+
+            $certFiles = [$tlsCrtPath, $tlsKeyPath];
+            foreach ($certFiles as $dstFile) {
+                $this->copyFile($sysUser, $certificatePath, $dstFile);
+            }
+        } else {
+            $gottyMngBinary = pm_ProductInfo::getOsArch() == 'i386' ? 'gottymng.i386' : 'gottymng.x86_64';
+            $gottyMngPath = '/usr/local/psa/admin/sbin/modules/'. pm_Context::getModuleId() . '/' . $gottyMngBinary;
+
+            $args = [
+                $sysUser,
+                'exec',
+                $subscriptionPath,
+                $gottyMngPath,
+                '-crt-file', $tlsCrtPath,
+                '-key-file', $tlsKeyPath,
+            ];
+            $err = pm_ApiCli::callSbin('filemng', $args, pm_ApiCli::RESULT_FULL);
+            if ($err['code'] <> 0) {
+                throw new pm_Exception("Failed to generate TLS certificate: filemng " . print_r($args, true) . " with: " . print_r($err, true));
+            }
+        }
+
+        $address = $domain->getDisplayName();
+        $port = pm_Settings::get('port', '9000');
+        $user = substr(str_shuffle(md5(microtime())), 0, 5);
+        $pass = substr(str_shuffle(md5(microtime())), 0, 5);
         $this->view->address = $address;
         $this->view->port = $port;
         $this->view->user = $user;
         $this->view->pass = $pass;
 
+        $this->view->userTitle = pm_Locale::lmsg('user');
+        $this->view->passTitle = pm_Locale::lmsg('pass');
+
         $taskManager = new pm_LongTask_Manager();
-        $task = new Modules_CustomButtons_Task_Gotty();
+        $task = new Modules_Gotty_Task_Execute();
         $task->setParam('sysUser', $sysUser);
         $task->setParam('subscriptionPath', $subscriptionPath);
         $task->setParam('shell', $shell);
-        $task->setParam('configPath', $this->generateGottyConfig('/usr/local/psa/var/modules/custom-buttons', $port, $tlsCrtPath, $tlsKeyPath, $user, $pass));
+        $task->setParam('configPath', $this->generateGottyConfig($sysUser, $gottyStuffPath, $port, $tlsCrtPath, $tlsKeyPath, $user, $pass));
         $gottyBinary = pm_ProductInfo::getOsArch() == 'i386' ? 'gotty.i386' : 'gotty.x86_64';
         $gottyPath = '/usr/local/psa/admin/sbin/modules/'. pm_Context::getModuleId() . '/' . $gottyBinary;
         $task->setParam('gottyPath', $gottyPath);
 
         $taskManager->start($task);
 
-        sleep(3);
+        sleep(2);
     }
 
     /**
+     * @param $sysUser string
      * @param $configFolder string
      * @param $port string
      * @param $tlsCrtPath string
@@ -62,7 +141,7 @@ class IndexController extends pm_Controller_Action
      * @param $pass string
      * @return string
      */
-    private function generateGottyConfig($configFolder, $port, $tlsCrtPath, $tlsKeyPath, $user, $pass)
+    private function generateGottyConfig($sysUser, $configFolder, $port, $tlsCrtPath, $tlsKeyPath, $user, $pass)
     {
         $configPath = $configFolder . '/' . '.gotty';
         $config = [
@@ -78,13 +157,44 @@ class IndexController extends pm_Controller_Action
         foreach ($config as $param => $value) {
             $configContent .= sprintf("%s = %s\n", $param, $value);
         }
-        file_put_contents($configPath, $configContent);
+        $tmpConfigPath = '/usr/local/psa/var/modules/'. pm_Context::getModuleId() . '/' . substr(str_shuffle(md5(microtime())), 0, 10);
+        file_put_contents($tmpConfigPath, $configContent);
+        $this->copyFile($sysUser, $tmpConfigPath, $configPath);
+
+        pm_Log::debug('Delete temporary Gotty config');
+        pm_ApiCli::callSbin('filemng', ['psaadm', 'rm', $tmpConfigPath], pm_ApiCli::RESULT_FULL);
+        pm_Log::debug('Gotty config is deleted');
 
         return $configPath;
     }
 
-    public function anotherAction()
+    /**
+     * @param $sysUser string
+     * @param $source string
+     * @param $destination string
+     * @throws pm_Exception
+     */
+    private function copyFile($sysUser, $source, $destination)
     {
+        $args = [
+            $sysUser,
+            'touch',
+            $destination,
+        ];
+        $err = pm_ApiCli::callSbin('filemng', $args, pm_ApiCli::RESULT_FULL);
+        if ($err['code'] <> 0) {
+            throw new pm_Exception("Failed to create file: filemng " . print_r($args, true) . " with: " . print_r($err, true));
+        }
+        $args = [
+            $sysUser,
+            'cp2perm',
+            $source,
+            $destination,
+            '640'
+        ];
+        $err = pm_ApiCli::callSbin('filemng', $args, pm_ApiCli::RESULT_FULL);
+        if ($err['code'] <> 0) {
+            throw new pm_Exception("Failed to copy file: filemng " . print_r($args, true) . " with: " . print_r($err, true));
+        }
     }
-
 }
