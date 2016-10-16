@@ -22,9 +22,9 @@ class IndexController extends pm_Controller_Action
             'value' => pm_Settings::get('useDomainsCertificate'),
         ]);
 
-        $form->addElement('text', 'port', [
-            'label' => $this->lmsg('port'),
-            'value' => pm_Settings::get('port', '9000'),
+        $form->addElement('text', 'portRange', [
+            'label' => $this->lmsg('portRange'),
+            'value' => pm_Settings::get('portStart', '9000') . '-' . pm_Settings::get('portEnd', '10000'),
             'required' => true,
             'validators' => [
                 ['NotEmpty', true],
@@ -38,7 +38,9 @@ class IndexController extends pm_Controller_Action
         if ($this->getRequest()->isPost() && $form->isValid($this->getRequest()->getPost())) {
 
             pm_Settings::set('useDomainsCertificate', $form->getValue('useDomainsCertificate'));
-            pm_Settings::set('port', $form->getValue('port'));
+            preg_match("^(\d+)\-(\d+)$", $form->getValue('portRange'), $matches);
+            pm_Settings::set('portStart', $matches[1]);
+            pm_Settings::set('portEnd', $matches[2]);
 
             $this->_status->addMessage('info', $this->lmsg('settingsWasSuccessfullySaved'));
             $this->_helper->json(['redirect' => pm_Context::getBaseUrl()]);
@@ -105,7 +107,7 @@ class IndexController extends pm_Controller_Action
         }
 
         $address = $domain->getDisplayName();
-        $port = pm_Settings::get('port', '9000');
+        $port = $this->getFreePort($sysUser, $subscriptionPath);
         $user = substr(str_shuffle(md5(microtime())), 0, 5);
         $pass = substr(str_shuffle(md5(microtime())), 0, 5);
         $this->view->address = $address;
@@ -166,6 +168,34 @@ class IndexController extends pm_Controller_Action
         pm_Log::debug('Gotty config is deleted');
 
         return $configPath;
+    }
+
+    /**
+     * @param $sysUser
+     * @param $subscriptionPath
+     * @return mixed
+     * @throws pm_Exception
+     */
+    private function getFreePort($sysUser, $subscriptionPath)
+    {
+        $gottyMngBinary = pm_ProductInfo::getOsArch() == 'i386' ? 'gottymng.i386' : 'gottymng.x86_64';
+        $gottyMngPath = '/usr/local/psa/admin/sbin/modules/'. pm_Context::getModuleId() . '/' . $gottyMngBinary;
+
+        $args = [
+            $sysUser,
+            'exec',
+            $subscriptionPath,
+            $gottyMngPath,
+            '-get-free-port',
+            '-port-start', pm_Settings::get('portStart', '9000'),
+            '-port-end', pm_Settings::get('portEnd', '10000'),
+        ];
+        $err = pm_ApiCli::callSbin('filemng', $args, pm_ApiCli::RESULT_FULL);
+        if ($err['code'] <> 0) {
+            throw new pm_Exception("Failed to acquire free TCP port: filemng " . print_r($args, true) . " with: " . print_r($err, true));
+        }
+
+        return $err['stdout'];
     }
 
     /**

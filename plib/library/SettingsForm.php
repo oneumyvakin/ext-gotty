@@ -14,21 +14,28 @@ class Modules_Gotty_SettingsForm extends pm_Form_Simple
         parent::isValid($data);
 
         $useDomainsCertificate = $this->getElement('useDomainsCertificate')->getValue();
-        $port = $this->getElement('port')->getValue();
+        $portRange = $this->getElement('portRange')->getValue();
 
-        if ($useDomainsCertificate) {
-            if (isset($result['is_error'])) {
-
-                $msg = $result['message'];
-
-                if ($result['locale_key'] <> '') {
-                    $msg = pm_Locale::lmsg($result['locale_key'], $result['locale_args']);
-                }
-
-                $this->getElement('useDomainsCertificate')->addError(pm_Locale::lmsg('settingsTestFailed', ['message' => $msg]));
+        if ($portRange) {
+            $matches = [];
+            preg_match("^(\d+)\-(\d+)$", $portRange, $matches);
+            if (empty($matches)) {
+                $this->getElement('portRange')->addError(pm_Locale::lmsg('wrongPortRange'));
                 $this->markAsError();
                 return false;
             }
+            pm_Log::debug(print_r($matches, true));
+            if ((int)$matches[1] < 1024) {
+                $this->getElement('portRange')->addError(pm_Locale::lmsg('wrongPortRangeStart'));
+                $this->markAsError();
+                return false;
+            }
+            if ((int)$matches[2] > 65535) {
+                $this->getElement('portRange')->addError(pm_Locale::lmsg('wrongPortRangeEnd'));
+                $this->markAsError();
+                return false;
+            }
+
         }
 
         return true;
