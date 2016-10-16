@@ -38,7 +38,7 @@ class IndexController extends pm_Controller_Action
         if ($this->getRequest()->isPost() && $form->isValid($this->getRequest()->getPost())) {
 
             pm_Settings::set('useDomainsCertificate', $form->getValue('useDomainsCertificate'));
-            preg_match("^(\d+)\-(\d+)$", $form->getValue('portRange'), $matches);
+            preg_match("/^(\d+)\-(\d+)$/", $form->getValue('portRange'), $matches);
             pm_Settings::set('portStart', $matches[1]);
             pm_Settings::set('portEnd', $matches[2]);
 

@@ -18,13 +18,15 @@ class Modules_Gotty_SettingsForm extends pm_Form_Simple
 
         if ($portRange) {
             $matches = [];
-            preg_match("^(\d+)\-(\d+)$", $portRange, $matches);
+            preg_match("/^(\d+)\-(\d+)$/", $portRange, $matches);
+            pm_Log::debug(print_r($matches, true));
+
             if (empty($matches)) {
                 $this->getElement('portRange')->addError(pm_Locale::lmsg('wrongPortRange'));
                 $this->markAsError();
                 return false;
             }
-            pm_Log::debug(print_r($matches, true));
+
             if ((int)$matches[1] < 1024) {
                 $this->getElement('portRange')->addError(pm_Locale::lmsg('wrongPortRangeStart'));
                 $this->markAsError();
