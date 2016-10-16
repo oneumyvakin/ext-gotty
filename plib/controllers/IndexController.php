@@ -107,7 +107,7 @@ class IndexController extends pm_Controller_Action
         }
 
         $address = $domain->getDisplayName();
-        $port = $this->getFreePort($sysUser, $subscriptionPath);
+        $port = $this->getFreePort();
         $user = substr(str_shuffle(md5(microtime())), 0, 5);
         $pass = substr(str_shuffle(md5(microtime())), 0, 5);
         $this->view->address = $address;
@@ -171,31 +171,22 @@ class IndexController extends pm_Controller_Action
     }
 
     /**
-     * @param $sysUser
-     * @param $subscriptionPath
-     * @return mixed
+     * @return int
      * @throws pm_Exception
      */
-    private function getFreePort($sysUser, $subscriptionPath)
+    private function getFreePort()
     {
-        $gottyMngBinary = pm_ProductInfo::getOsArch() == 'i386' ? 'gottymng.i386' : 'gottymng.x86_64';
-        $gottyMngPath = '/usr/local/psa/admin/sbin/modules/'. pm_Context::getModuleId() . '/' . $gottyMngBinary;
+        for ($port=(int)pm_Settings::get('portStart', '9000'); $port<= (int)pm_Settings::get('portEnd', '10000'); $port++) {
+            $sock = socket_create_listen($port);
+            if ($sock === false) {
+                continue;
+            }
 
-        $args = [
-            $sysUser,
-            'exec',
-            $subscriptionPath,
-            $gottyMngPath,
-            '-get-free-port',
-            '-port-start', pm_Settings::get('portStart', '9000'),
-            '-port-end', pm_Settings::get('portEnd', '10000'),
-        ];
-        $err = pm_ApiCli::callSbin('filemng', $args, pm_ApiCli::RESULT_FULL);
-        if ($err['code'] <> 0) {
-            throw new pm_Exception("Failed to acquire free TCP port: filemng " . print_r($args, true) . " with: " . print_r($err, true));
+            socket_close($sock);
+            return $port;
         }
 
-        return $err['stdout'];
+        throw new pm_Exception("Failed to acquire free TCP port: All ports in range are busy.");
     }
 
     /**
