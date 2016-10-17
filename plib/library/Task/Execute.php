@@ -11,6 +11,8 @@ class Modules_Gotty_Task_Execute extends pm_LongTask_Task // Since Plesk 17.0
     {
         $sysUser = $this->getParam('sysUser', 'none');
         $subscriptionPath = $this->getParam('subscriptionPath', 'none');
+        $gottyMngPath = $this->getParam('gottyMngPath', 'none');
+        $timeout = $this->getParam('timeout', '5');
         $configPath = $this->getParam('configPath', 'none');
         $shell = $this->getParam('shell', 'none');
         $gottyPath = $this->getParam('gottyPath', 'none');
@@ -19,12 +21,10 @@ class Modules_Gotty_Task_Execute extends pm_LongTask_Task // Since Plesk 17.0
             $sysUser,
             'exec',
             $subscriptionPath,
+            $gottyMngPath, '-run', '-timeout', $timeout, '-cmd',
             $gottyPath,
-            '--once',
-            '--config',
-            $configPath,
-            '-w',
-            $shell,
+            '-cmd-args',
+            "--once --config $configPath -w $shell",
         ];
         $err = pm_ApiCli::callSbin('filemng', $args, pm_ApiCli::RESULT_FULL);
         if ($err['code'] <> 0) {

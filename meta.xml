@@ -7,8 +7,8 @@
     <description xml:lang="ru-RU">Предоставляет владельцу подписки доступ к системному терминалу через web-страницу.</description>
     <url>https://github.com/plesk/ext-gotty</url>
     <version>1.0</version>
-    <release>0</release>
+    <release>1</release>
     <vendor>Plesk</vendor>
-    <plesk_min_version>12.5.30</plesk_min_version>
+    <plesk_min_version>17.0.17</plesk_min_version>
     <os>unix</os>
 </module>

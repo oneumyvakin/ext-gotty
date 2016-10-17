@@ -62,6 +62,8 @@ class IndexController extends pm_Controller_Action
         $domain = pm_Domain::getByDomainId($siteId);
         $subscriptionPath = $domain->getHomePath();
         $gottyStuffPath = $subscriptionPath . '/' . '.web-term';
+        $gottyMngBinary = pm_ProductInfo::getOsArch() == 'i386' ? 'gottymng.i386' : 'gottymng.x86_64';
+        $gottyMngPath = '/usr/local/psa/admin/sbin/modules/'. pm_Context::getModuleId() . '/' . $gottyMngBinary;
         $sysUser = $domain->getSysUserLogin();
         $shell = pm_Bootstrap::getDbAdapter()->fetchOne("select shell from sys_users where login='${sysUser}'");
 
@@ -89,9 +91,6 @@ class IndexController extends pm_Controller_Action
                 $this->copyFile($sysUser, $certificatePath, $dstFile);
             }
         } else {
-            $gottyMngBinary = pm_ProductInfo::getOsArch() == 'i386' ? 'gottymng.i386' : 'gottymng.x86_64';
-            $gottyMngPath = '/usr/local/psa/admin/sbin/modules/'. pm_Context::getModuleId() . '/' . $gottyMngBinary;
-
             $args = [
                 $sysUser,
                 'exec',
@@ -122,6 +121,8 @@ class IndexController extends pm_Controller_Action
         $task = new Modules_Gotty_Task_Execute();
         $task->setParam('sysUser', $sysUser);
         $task->setParam('subscriptionPath', $subscriptionPath);
+        $task->setParam('gottyMngPath', $gottyMngPath);
+        $task->setParam('timeout', pm_Settings::get('timeout', '5'));
         $task->setParam('shell', $shell);
         $task->setParam('configPath', $this->generateGottyConfig($sysUser, $gottyStuffPath, $port, $tlsCrtPath, $tlsKeyPath, $user, $pass));
         $gottyBinary = pm_ProductInfo::getOsArch() == 'i386' ? 'gotty.i386' : 'gotty.x86_64';
