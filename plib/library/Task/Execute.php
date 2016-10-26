@@ -13,16 +13,26 @@ class Modules_Gotty_Task_Execute extends pm_LongTask_Task // Since Plesk 17.0
         $subscriptionPath = $this->getParam('subscriptionPath', 'none');
         $gottyMngPath = $this->getParam('gottyMngPath', 'none');
         $timeout = $this->getParam('timeout', '5');
-        $configPath = $this->getParam('configPath', 'none');
+        $portStart = $this->getParam('portStart', '9000');
+        $portEnd = $this->getParam('portStart', '10000');
+        $tlsCrtPath = $this->getParam('tlsCrtPath', '');
+        $tlsKeyPath = $this->getParam('tlsKeyPath', '');
+        $configPath = $this->getParam('configPath', '');
         $shell = $this->getParam('shell', 'none');
-        $gottyPath = $this->getParam('gottyPath', 'none');
+        $gottyPath = $this->getParam('gottyPath', '');
 
         $args = [
             $sysUser,
             'exec',
             $subscriptionPath,
-            $gottyMngPath, '-run', '-timeout', $timeout, '-cmd',
-            $gottyPath,
+            $gottyMngPath,
+            '-crt-file', $tlsCrtPath,
+            '-key-file', $tlsKeyPath,
+            '-config', $configPath,
+            '-port-range-start', $portStart,
+            '-port-range-stop', $portEnd,
+            '-timeout', $timeout,
+            '-gotty', $gottyPath,
             '-cmd-args',
             "--once --config $configPath -w $shell",
         ];

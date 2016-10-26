@@ -96,6 +96,7 @@ class IndexController extends pm_Controller_Action
                 'exec',
                 $subscriptionPath,
                 $gottyMngPath,
+                '-generate-tls',
                 '-crt-file', $tlsCrtPath,
                 '-key-file', $tlsKeyPath,
             ];
@@ -123,6 +124,8 @@ class IndexController extends pm_Controller_Action
         $task->setParam('subscriptionPath', $subscriptionPath);
         $task->setParam('gottyMngPath', $gottyMngPath);
         $task->setParam('timeout', pm_Settings::get('timeout', '5'));
+        $task->setParam('tlsCrtPath', $tlsCrtPath);
+        $task->setParam('tlsKeyPath', $tlsKeyPath);
         $task->setParam('shell', $shell);
         $task->setParam('configPath', $this->generateGottyConfig($sysUser, $gottyStuffPath, $port, $tlsCrtPath, $tlsKeyPath, $user, $pass));
         $gottyBinary = pm_ProductInfo::getOsArch() == 'i386' ? 'gotty.i386' : 'gotty.x86_64';
@@ -130,8 +133,13 @@ class IndexController extends pm_Controller_Action
         $task->setParam('gottyPath', $gottyPath);
 
         $taskManager->start($task);
-
         sleep(2);
+
+        $frontEndConfig = file_get_contents($gottyStuffPath . '/' . 'front-end.json');
+        if (empty($frontEndConfig)) {
+            throw new pm_Exception("Failed to read front-end.json: filemng " . print_r($args, true) . " with: " . print_r($err, true));
+        }
+        json_decode( true);
     }
 
     /**
@@ -188,6 +196,11 @@ class IndexController extends pm_Controller_Action
         }
 
         throw new pm_Exception("Failed to acquire free TCP port: All ports in range are busy.");
+    }
+
+    private function getFreePortSafe()
+    {
+
     }
 
     /**
