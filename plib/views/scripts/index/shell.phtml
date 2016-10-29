@@ -11,7 +11,7 @@ echo $this->passTitle;
 echo $this->pass;
 echo '<p>';
 $href = 'https://' . $this->address . ':' . $this->port;
-$jsNewWindow = 'window.open("' .$href. '", "GoTTY", "width=1150,height=600,innerWidth=1150,innerHeight=600,toolbar=yes,personalbar=no,locationbar=no,statusbar=no,scrollbars=yes,resizable=yes");return false;';
+$jsNewWindow = 'window.open("' .$href. '", "GoTTY", "width=1150,height=600,innerWidth=1150,innerHeight=600,toolbar=yes,personalbar=yes,locationbar=yes,statusbar=yes,scrollbars=yes,resizable=yes");return false;';
 
 echo "<a rel='noopener noreferrer' target='_blank' href='#' onclick='${jsNewWindow}'>${href}</a>";
 echo '<p>';

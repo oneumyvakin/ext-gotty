@@ -106,18 +106,6 @@ class IndexController extends pm_Controller_Action
             }
         }
 
-        $address = $domain->getDisplayName();
-        $port = $this->getFreePort();
-        $user = substr(str_shuffle(md5(microtime())), 0, 5);
-        $pass = substr(str_shuffle(md5(microtime())), 0, 5);
-        $this->view->address = $address;
-        $this->view->port = $port;
-        $this->view->user = $user;
-        $this->view->pass = $pass;
-
-        $this->view->userTitle = pm_Locale::lmsg('user');
-        $this->view->passTitle = pm_Locale::lmsg('pass');
-
         $taskManager = new pm_LongTask_Manager();
         $task = new Modules_Gotty_Task_Execute();
         $task->setParam('sysUser', $sysUser);
@@ -127,80 +115,42 @@ class IndexController extends pm_Controller_Action
         $task->setParam('tlsCrtPath', $tlsCrtPath);
         $task->setParam('tlsKeyPath', $tlsKeyPath);
         $task->setParam('shell', $shell);
-        $task->setParam('configPath', $this->generateGottyConfig($sysUser, $gottyStuffPath, $port, $tlsCrtPath, $tlsKeyPath, $user, $pass));
+        $task->setParam('configPath', $gottyStuffPath . '/' . '.gotty');
         $gottyBinary = pm_ProductInfo::getOsArch() == 'i386' ? 'gotty.i386' : 'gotty.x86_64';
         $gottyPath = '/usr/local/psa/admin/sbin/modules/'. pm_Context::getModuleId() . '/' . $gottyBinary;
         $task->setParam('gottyPath', $gottyPath);
 
+        $frontEndConfigPath = $gottyStuffPath . '/' . 'front-end.json';
+        $this->removeFile($sysUser, $frontEndConfigPath);
+
         $taskManager->start($task);
-        sleep(2);
 
-        $frontEndConfig = file_get_contents($gottyStuffPath . '/' . 'front-end.json');
-        if (empty($frontEndConfig)) {
-            throw new pm_Exception("Failed to read front-end.json: filemng " . print_r($args, true) . " with: " . print_r($err, true));
-        }
-        json_decode( true);
-    }
-
-    /**
-     * @param $sysUser string
-     * @param $configFolder string
-     * @param $port string
-     * @param $tlsCrtPath string
-     * @param $tlsKeyPath string
-     * @param $user string
-     * @param $pass string
-     * @return string
-     */
-    private function generateGottyConfig($sysUser, $configFolder, $port, $tlsCrtPath, $tlsKeyPath, $user, $pass)
-    {
-        $configPath = $configFolder . '/' . '.gotty';
-        $config = [
-            'port' => sprintf('"%s"', $port),
-            'enable_tls' => 'true',
-            'tls_crt_file' => sprintf('"%s"', $tlsCrtPath),
-            'tls_key_file' => sprintf('"%s"', $tlsKeyPath),
-            'enable_basic_auth' => 'true',
-            'credential' => sprintf('"%s:%s"', $user, $pass),
-        ];
-
-        $configContent = '';
-        foreach ($config as $param => $value) {
-            $configContent .= sprintf("%s = %s\n", $param, $value);
-        }
-        $tmpConfigPath = '/usr/local/psa/var/modules/'. pm_Context::getModuleId() . '/' . substr(str_shuffle(md5(microtime())), 0, 10);
-        file_put_contents($tmpConfigPath, $configContent);
-        $this->copyFile($sysUser, $tmpConfigPath, $configPath);
-
-        pm_Log::debug('Delete temporary Gotty config');
-        pm_ApiCli::callSbin('filemng', ['psaadm', 'rm', $tmpConfigPath], pm_ApiCli::RESULT_FULL);
-        pm_Log::debug('Gotty config is deleted');
-
-        return $configPath;
-    }
-
-    /**
-     * @return int
-     * @throws pm_Exception
-     */
-    private function getFreePort()
-    {
-        for ($port=(int)pm_Settings::get('portStart', '9000'); $port<= (int)pm_Settings::get('portEnd', '10000'); $port++) {
-            $sock = socket_create_listen($port);
-            if ($sock === false) {
-                continue;
+        for($i = 1; $i <=10; $i++) {
+            sleep(1);
+            if (file_exists($frontEndConfigPath)) {
+                break;
             }
-
-            socket_close($sock);
-            return $port;
         }
 
-        throw new pm_Exception("Failed to acquire free TCP port: All ports in range are busy.");
-    }
+        $frontEndConfig = file_get_contents($frontEndConfigPath);
+        if (!$frontEndConfig) {
+            throw new pm_Exception("Failed to read " . $frontEndConfigPath);
+        }
+        try {
+            $frontEnd = json_decode($frontEndConfig, true);
+            pm_Log::debug($frontEnd);
+        } catch (\Exception $e) {
+            throw new pm_Exception("Failed to read " . $frontEndConfigPath . ": " . $e->getMessage());
+        }
 
-    private function getFreePortSafe()
-    {
+        $address = $domain->getDisplayName();
+        $this->view->address = $address;
+        $this->view->port = $frontEnd['Port'];
+        $this->view->user = $frontEnd['User'];
+        $this->view->pass = $frontEnd['Pass'];
 
+        $this->view->userTitle = pm_Locale::lmsg('user');
+        $this->view->passTitle = pm_Locale::lmsg('pass');
     }
 
     /**
@@ -230,6 +180,27 @@ class IndexController extends pm_Controller_Action
         $err = pm_ApiCli::callSbin('filemng', $args, pm_ApiCli::RESULT_FULL);
         if ($err['code'] <> 0) {
             throw new pm_Exception("Failed to copy file: filemng " . print_r($args, true) . " with: " . print_r($err, true));
+        }
+    }
+
+    /**
+     * @param $sysUser string
+     * @param $path string
+     * @throws pm_Exception
+     */
+    private function removeFile($sysUser, $path)
+    {
+        if (!file_exists($path)) {
+            return;
+        }
+        $args = [
+            $sysUser,
+            'rm',
+            $path,
+        ];
+        $err = pm_ApiCli::callSbin('filemng', $args, pm_ApiCli::RESULT_FULL);
+        if ($err['code'] <> 0) {
+            throw new pm_Exception("Failed to remove file: filemng " . print_r($args, true) . " with: " . print_r($err, true));
         }
     }
 }
