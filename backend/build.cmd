@@ -1,3 +1,5 @@
+go get -u github.com/oneumyvakin/certgen
+
 set PKGNAME=gottymng
 set LOCALPATH=%~dp0
 
@@ -7,11 +9,11 @@ go fmt %PKGNAME%
 
 set GOOS=linux
 set GOARCH=amd64
-go build -gcflags=-trimpath="M:/Joomla" -asmflags=-trimpath="M:/Joomla" -o ../sbin/%PKGNAME%.x86_64 %PKGNAME%
+go build -o ../sbin/%PKGNAME%.x86_64 %PKGNAME%
 
 set GOOS=linux
 set GOARCH=386
-go build -gcflags=-trimpath="M:/Joomla" -asmflags=-trimpath="M:/Joomla" -o ../sbin/%PKGNAME%.i386 %PKGNAME%
+go build -o ../sbin/%PKGNAME%.i386 %PKGNAME%
 
 
 rmdir "%GOPATH%\src\%PKGNAME%"
