@@ -1,7 +1,7 @@
 <?php
 // Copyright 1999-2017. Parallels IP Holdings GmbH.
 $messages = [
-    'useDomainsCertificate' => 'Use domain SSL/TLS certificate instead of self-signed. <b>Security Warning:</b> make sure that there no domains that using default certificate of Plesk panel!',
+    'useDomainsCertificate' => 'Use domain SSL/TLS certificate instead of self-signed. Security Warning: make sure that there no domains that using default certificate of Plesk panel!',
     'portRange' => 'Web terminal port range',
     'buttonTitle' => 'System Shell',
     'buttonTooltip' => 'Access to System Shell',
