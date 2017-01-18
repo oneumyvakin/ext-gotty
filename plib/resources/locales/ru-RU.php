@@ -1,5 +1,5 @@
 <?php
-// Copyright 1999-2016. Parallels IP Holdings GmbH.
+// Copyright 1999-2017. Parallels IP Holdings GmbH.
 $messages = [
     'useDomainsCertificate' => 'Использовать доменный SSL/TLS сертификат вместо самоподписанного. Внимание: убедитесь, что у Вас нет доменов, которы используют общий сертификат панели Plesk!',
     'portRange' => 'Порт web терминала',
